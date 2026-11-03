@@ -4,12 +4,7 @@
 지금은 1-1 시나리오(캠퍼스·행사 안내) 중 **대화 부분**을 로봇 없이 먼저 구현하는 단계로,
 브라우저에서 질문하면 코리 말투의 음성으로 답합니다.
 
-```
-클라이언트 ──질문──▶ 코비 서버 ──대사──▶ TTS 서비스
-(브라우저, 이후 Pi 4)   (STT → LLM)             │
-    ▲                                        │
-    └───────음성──── 코비 서버 ◀───음성────────┘
-```
+![코비 시스템 구성도](arch.png)
 
 | 구성 | 역할 | 기술 | 환경 | 포트 |
 |---|---|---|---|---|
@@ -133,20 +128,7 @@ chmod +x start.sh       # 처음 한 번
 | `tts.prompt_audio` | 목소리 견본. kobi 폴더 기준 상대경로. 한국어 화자 견본(10~20초, 대화체)을 쓰면 발음이 좋아짐. 실제 사람 목소리는 본인 동의 필수 |
 | `dialog.persona` | 임시 코리 말투 설정 (1단계에서 캐릭터 설정 파일로 대체 예정) |
 
-## 6. 문제 해결
-
-| 증상 | 원인 | 해결 |
-|---|---|---|
-| 웹소켓 연결이 404 | 코비 서버를 `kobi-tts` 환경에서 실행 (websockets 없음) | `kobi` 환경에서 실행 (`start.sh`는 자동 처리) |
-| 접속 시 응답 없음 / handshake timeout | 다른 프로그램(VS Code 등)이 같은 포트 사용 | `ss -ltnp \| grep :8100`으로 확인 후 포트 변경 |
-| 서버 로그에 `Invalid HTTP request received` | 브라우저가 `https`로 접속 시도 | 주소를 `http://`로 직접 입력 |
-| `No module named 'torch'` (kobi-tts) | MOSS-TTS를 `pip install -e .`로 설치 | `-e ".[torch-runtime]"`로 설치 (requirements 파일 사용) |
-| `Could not load libtorchcodec` | ffmpeg 없음 또는 CUDA판 torchcodec이 시스템 CUDA 12.1의 NPP와 충돌 | conda로 ffmpeg 7 설치 + CPU판 torchcodec으로 교체 |
-| `expected mat1 and mat2 to have the same dtype` | TTS 모델 일부가 bf16으로 로드됨 | `tts/moss_fp16.patch` 적용 |
-| 첫 소리까지 수십 초 | TTS 세션을 새로 열 때마다 모델 재로드 | 코비 서버가 세션 하나를 재사용 (현재 코드에 반영됨) |
-| STT 결과가 "다음 영상에서 만나요" 등 | 무음·잡음 입력에 Whisper가 문장을 지어냄 | `arecord -l`로 마이크 장치 확인 후 다시 녹음 |
-
-## 7. 진행 상황
+## 6. 진행 상황
 
 - [x] 0단계: STT·LLM·임베딩·TTS 설치 및 동작 확인
 - [x] 2단계 일부: 텍스트 질문 → 음성 답변 스트리밍, 웹 데모, 원격 접속, 실행 스크립트
