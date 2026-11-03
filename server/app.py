@@ -29,9 +29,12 @@ import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-CFG = yaml.safe_load((Path(__file__).parent / "config.yaml").read_text(encoding="utf-8"))
+ROOT = Path(__file__).resolve().parent.parent          # kobi 폴더
+CFG = yaml.safe_load((ROOT / "server" / "config.yaml").read_text(encoding="utf-8"))
 OLLAMA = CFG["ollama"]
 TTS = CFG["tts"]
+# 목소리 견본은 kobi 폴더 기준 상대경로로 적고, TTS 서비스에는 절대경로로 넘긴다
+TTS["prompt_audio"] = str((ROOT / TTS["prompt_audio"]).resolve())
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("kobi")
