@@ -1,0 +1,8 @@
+# 외부 저장소 (따로 clone 후 tts/moss_fp16.patch 적용)
+tts/MOSS-TTS/
+# 로그, 녹음, 생성된 음성
+logs/
+checks/out/
+*.wav
+*.mp3
+__pycache__/

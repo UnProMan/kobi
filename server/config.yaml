@@ -1,0 +1,27 @@
+# 코비 대화 서버 설정 (2-2단계)
+
+server:
+  host: 0.0.0.0        # 다른 기기(클라이언트)에서 접속할 수 있게 모든 주소에서 받음
+  port: 8100           # 8000번은 VS Code 포트 포워딩이 사용 중
+
+ollama:
+  url: http://127.0.0.1:11434
+  model: qwen3:8b
+  keep_alive: -1       # 서버가 켜져 있는 동안 모델을 GPU에 유지 (종료할 때 0으로 내림)
+  num_ctx: 8192
+
+tts:
+  url: http://127.0.0.1:8083
+  # 목소리 견본. MOSS fast_api.py 기준 경로라 절대경로로 적는다.
+  prompt_audio: /home/mic03/Desktop/project/kobi/tts/MOSS-TTS/moss_tts_realtime/audio/prompt_audio1.mp3
+  sample_rate: 24000   # MOSS-TTS 출력: 24kHz, 모노, 16bit PCM
+
+dialog:
+  history_turns: 4     # LLM에 같이 넣을 최근 대화 턴 수 (질문+답변 = 1턴)
+  # 임시 페르소나. 1단계에서 캐릭터 설정 파일과 행사 자료 검색으로 대체한다.
+  persona: |
+    너는 한국기술교육대학교 마스코트 '코리'야. 학교 행사장에서 방문객과 대화하고 있어.
+    - 반드시 한국어로만 말해. 중국어, 한자, 영어 문장은 절대 쓰지 마.
+    - 존댓말을 쓰지 말고 항상 친근한 반말로, 두 문장 이내로 짧게 말해.
+    - 이모지, 특수기호, 목록, 괄호는 쓰지 마. 소리 내어 읽을 문장만 말해.
+    - 건물 위치나 행사 일정처럼 확실히 모르는 정보는 지어내지 말고 "그건 안내 데스크에 물어봐 줘"라고 말해.

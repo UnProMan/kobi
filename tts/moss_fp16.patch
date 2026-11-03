@@ -1,0 +1,66 @@
+diff --git a/moss_tts_realtime/example_llm_stream_to_tts.py b/moss_tts_realtime/example_llm_stream_to_tts.py
+index 8bb8a02..eac6556 100644
+--- a/moss_tts_realtime/example_llm_stream_to_tts.py
++++ b/moss_tts_realtime/example_llm_stream_to_tts.py
+@@ -233,7 +233,7 @@ def main():
+         raise RuntimeError("CUDA is required.")
+ 
+     device = torch.device(args.device)
+-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
++    dtype = torch.float16
+ 
+     if args.seed is not None:
+         torch.manual_seed(args.seed)
+@@ -246,7 +246,7 @@ def main():
+         str(args.model_path),
+         attn_implementation=args.attn_implementation,
+         torch_dtype=dtype,
+-    ).to(device)
++    ).to(device=device, dtype=dtype)
+     model.eval()
+ 
+     codec = _load_codec(args.codec_path, device)
+diff --git a/moss_tts_realtime/fast_api.py b/moss_tts_realtime/fast_api.py
+index b599760..43a5cf5 100644
+--- a/moss_tts_realtime/fast_api.py
++++ b/moss_tts_realtime/fast_api.py
+@@ -283,13 +283,13 @@ def _load_backend(
+     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+     processor = MossTTSRealtimeProcessor(tokenizer)
+ 
+-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
++    dtype = torch.float16
+     if attn_impl and attn_impl.lower() not in {"none", ""}:
+         model = MossTTSRealtime.from_pretrained(
+             model_path,
+             attn_implementation=attn_impl,
+             torch_dtype=dtype,
+-        ).to(device)
++        ).to(device=device, dtype=dtype)
+         if (
+             attn_impl.lower() == "flash_attention_2"
+             and hasattr(model, "language_model")
+@@ -297,7 +297,7 @@ def _load_backend(
+         ):
+             model.language_model.config.attn_implementation = "flash_attention_2"
+     else:
+-        model = MossTTSRealtime.from_pretrained(model_path, torch_dtype=dtype).to(device)
++        model = MossTTSRealtime.from_pretrained(model_path, torch_dtype=dtype).to(device=device, dtype=dtype)
+ 
+     model.eval()
+     codec = _load_codec(device, codec_model_path)
+diff --git a/moss_tts_realtime/tts_client.py b/moss_tts_realtime/tts_client.py
+index c3df443..54bf9b4 100644
+--- a/moss_tts_realtime/tts_client.py
++++ b/moss_tts_realtime/tts_client.py
+@@ -11,8 +11,8 @@ BASE_URL = "http://127.0.0.1:8083"
+ OUT_PCM_PATH = "out_streaming_split.pcm"
+ OUT_WAV_PATH = "out_streaming_split.wav"
+ 
+-FULL_TEXT = """Welcome to the world of MOSS TTS Realtime. Experience how text transforms into smooth, human-like speech in real time. MOSS TTS Realtime is a context-aware multi-turn streaming TTS, a speech generation foundation model designed for voice agents."""
+-PROMPT_AUDIO = "./audio/prompt_audio.mp3"
++FULL_TEXT = """안녕! 나는 코리야. 컴퓨터공학부 건물은 정문에서 오른쪽으로 쭉 가면 나와. 궁금한 거 있으면 또 물어봐."""
++PROMPT_AUDIO = "./audio/prompt_audio1.mp3"
+ 
+ DELTA_CHUNK_CHARS = 50
+ 

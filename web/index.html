@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>코비 대화 데모</title>
+<style>
+  :root {
+    --bg: #f6f3ec; --panel: #ffffff; --ink: #1f2430; --muted: #6b7280;
+    --kori: #f3e3bf; --kori-ink: #7a5b1e; --accent: #2b4c9b; --line: #e6e1d6;
+    --me: #2b4c9b; --me-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15171c; --panel: #1e2128; --ink: #e8e9ee; --muted: #9aa0ad;
+            --kori: #4a4030; --kori-ink: #f3e3bf; --accent: #8fa8ff; --line: #2c3039;
+            --me: #3b5bb8; --me-ink: #ffffff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column;
+         height: 100vh; gap: 16px; }
+
+  /* 상단: 코리 얼굴 + 상태 */
+  header { display: flex; align-items: center; gap: 16px; }
+  .face { width: 72px; height: 72px; border-radius: 50%; background: var(--kori); position: relative;
+          flex: none; border: 3px solid transparent; transition: border-color .2s; }
+  .face .eye { position: absolute; top: 28px; width: 8px; height: 8px; border-radius: 50%; background: var(--kori-ink); }
+  .face .eye.l { left: 22px; } .face .eye.r { right: 22px; }
+  .face .mouth { position: absolute; left: 50%; top: 44px; width: 16px; height: 6px; margin-left: -8px;
+                 border-bottom: 3px solid var(--kori-ink); border-radius: 0 0 10px 10px; }
+  .face[data-state="thinking"] { border-color: #e0a72f; }
+  .face[data-state="thinking"] .eye { top: 25px; }
+  .face[data-state="speaking"] { border-color: #3fa66b; }
+  .face[data-state="speaking"] .mouth { border: none; background: var(--kori-ink); height: 8px;
+                                         border-radius: 50%; animation: talk .25s infinite alternate; }
+  @keyframes talk { from { transform: scaleY(.4); } to { transform: scaleY(1.3); } }
+  h1 { font-size: 20px; margin: 0; }
+  #status { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  /* 대화 기록 */
+  #log { flex: 1; overflow-y: auto; background: var(--panel); border: 1px solid var(--line);
+         border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: 4px; }
+  .kori { align-self: flex-start; background: var(--kori); color: var(--ink); border-bottom-left-radius: 4px; }
+  .timing { align-self: flex-start; font-size: 12px; color: var(--muted); margin-top: -4px; }
+  .error { align-self: center; color: #c0392b; font-size: 13px; }
+  .empty { color: var(--muted); text-align: center; margin: auto; font-size: 14px; }
+
+  /* 입력 */
+  form { display: flex; gap: 8px; }
+  input { flex: 1; font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+          background: var(--panel); color: var(--ink); }
+  button { font: inherit; padding: 0 20px; border-radius: 12px; border: none; background: var(--accent);
+           color: #fff; cursor: pointer; }
+  button:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="face" id="face" data-state="idle">
+      <div class="eye l"></div><div class="eye r"></div><div class="mouth"></div>
+    </div>
+    <div>
+      <h1>코비 대화 데모</h1>
+      <div id="status">서버에 연결하는 중…</div>
+    </div>
+  </header>
+
+  <div id="log"><div class="empty" id="empty">코리에게 말을 걸어 보세요.</div></div>
+
+  <form id="form">
+    <input id="text" autocomplete="off" placeholder="예: 안녕? 너는 누구야?" disabled>
+    <button id="send" disabled>보내기</button>
+  </form>
+</main>
+
+<script>
+// ---------------------------------------------------------------- 설정
+const SAMPLE_RATE = 24000;      // 서버(MOSS-TTS) 음성: 24kHz, 모노, PCM16
+const START_LEAD = 0.15;        // 첫 조각 재생 전 여유(초). 조각이 늦게 와도 끊김을 줄인다
+
+// ---------------------------------------------------------------- 화면 요소
+const $ = (id) => document.getElementById(id);
+const face = $("face"), statusEl = $("status"), log = $("log");
+const input = $("text"), sendBtn = $("send");
+const STATUS = { idle: "대기 중", thinking: "생각하는 중…", speaking: "말하는 중" };
+
+function setState(s) {
+  face.dataset.state = s;
+  statusEl.textContent = STATUS[s] || s;
+}
+function addLine(cls, text) {
+  $("empty")?.remove();
+  const el = document.createElement("div");
+  el.className = cls;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+function setBusy(busy) {
+  input.disabled = busy;
+  sendBtn.disabled = busy;
+  if (!busy) input.focus();
+}
+
+// ---------------------------------------------------------------- 음성 재생
+// 브라우저는 사용자가 클릭/입력하기 전에는 소리를 낼 수 없어서, 첫 전송 때 AudioContext를 만든다.
+let audioCtx = null;
+let nextTime = 0;               // 다음 조각을 이어 붙일 재생 시각
+let lastSource = null;
+
+function playChunk(arrayBuffer) {
+  const pcm = new Int16Array(arrayBuffer);
+  const buf = audioCtx.createBuffer(1, pcm.length, SAMPLE_RATE);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768;   // int16 → -1~1 실수
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(audioCtx.destination);
+  // 조각 사이에 빈틈이 없게 이전 조각이 끝나는 시각에 이어서 재생
+  nextTime = Math.max(nextTime, audioCtx.currentTime + START_LEAD);
+  src.start(nextTime);
+  nextTime += buf.duration;
+  lastSource = src;
+}
+
+// ---------------------------------------------------------------- 서버 연결
+const ws = new WebSocket(`ws://${location.host}/ws`);
+ws.binaryType = "arraybuffer";
+
+ws.onopen = () => { setState("idle"); setBusy(false); };
+ws.onclose = () => { statusEl.textContent = "서버 연결이 끊겼습니다. 새로고침해 주세요."; setBusy(true); };
+
+ws.onmessage = (ev) => {
+  if (ev.data instanceof ArrayBuffer) {          // 음성 조각
+    playChunk(ev.data);
+    return;
+  }
+  const msg = JSON.parse(ev.data);
+  if (msg.type === "state") {
+    setState(msg.value);
+  } else if (msg.type === "error") {
+    addLine("error", `에러: ${msg.value}`);
+  } else if (msg.type === "reply_end") {
+    const t = msg.timing;
+    addLine("msg kori", msg.text || "(답변 없음)");
+    addLine("timing", `LLM 첫 글자 ${t.llm_first_ms ?? "-"} ms · 첫 소리 ${t.tts_first_ms ?? "-"} ms · 전체 ${t.total_ms} ms`);
+    setBusy(false);
+    // 마지막 조각이 다 재생되면 대기 상태로
+    if (lastSource) lastSource.onended = () => setState("idle");
+    else setState("idle");
+  }
+};
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text || ws.readyState !== WebSocket.OPEN) return;
+  if (!audioCtx) audioCtx = new AudioContext();
+  audioCtx.resume();
+  nextTime = 0;
+  lastSource = null;
+  addLine("msg me", text);
+  ws.send(JSON.stringify({ type: "text", text }));
+  input.value = "";
+  setBusy(true);
+});
+</script>
+</body>
+</html>
